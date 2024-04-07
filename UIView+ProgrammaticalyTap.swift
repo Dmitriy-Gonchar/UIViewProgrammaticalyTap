@@ -9,35 +9,27 @@ import UIKit
 
 extension UIView
 {
-	func allTargetSelectors(`for`: UIControl.Event) -> [(target: Any, selector: Selector)]
+	// TSP is target-selector pair:
+	typealias TSP = (target: Any, selector: Selector)
+
+	private func tsp(`for`: UIControl.Event) -> [TSP]
 	{
-		var pairs = [(target: Any, selector: Selector)]()
+		let tspFromSubviews = self.subviews.reduce([TSP]()) { $0 + $1.tsp(for: `for`) }
 
-		let control = self as? UIControl
+		guard let control = self as? UIControl else { return tspFromSubviews }
 
-		for target in control?.allTargets
-		{
-			if let actions = control?.actions(forTarget: target, forControlEvent: `for`)
-			{
-				for action in actions
-				{
-					pairs.append((target: target, selector: Selector(action)))
-				}
-			}
+		let tsp = control.allTargets.reduce([TSP]())
+		{ partial, target in
+			partial + (control.actions(forTarget: target, forControlEvent: `for`) ?? [])
+				.map { TSP(target: target, selector: Selector($0)) }
 		}
 
-		for subview in self.subviews
-		{
-			pairs += subview.allTargetSelectors(for: `for`)
-		}
-
-		return pairs
-
+		return tsp + tspFromSubviews
 	}
 
 	func programmaticalyTap()
 	{
-		let pairs = allTargetSelectors(for: .touchUpInside)
+		let pairs = tsp(for: .touchUpInside)
 		pairs.forEach { ($0.target as? NSObject)?.perform($0.selector, with: self) }
 	}
 }
